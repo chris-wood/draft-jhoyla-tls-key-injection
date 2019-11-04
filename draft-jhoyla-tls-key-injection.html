@@ -284,9 +284,13 @@ ul.toc li {
   <link href="#rfc.toc" rel="Contents">
 <link href="#rfc.section.1" rel="Chapter" title="1 Introduction">
 <link href="#rfc.section.2" rel="Chapter" title="2 Conventions and Definitions">
-<link href="#rfc.section.3" rel="Chapter" title="3 Security Considerations">
-<link href="#rfc.section.4" rel="Chapter" title="4 IANA Considerations">
-<link href="#rfc.references" rel="Chapter" title="5 Normative References">
+<link href="#rfc.section.3" rel="Chapter" title="3 PSK Injection">
+<link href="#rfc.section.4" rel="Chapter" title="4 Additional Derive Secret">
+<link href="#rfc.section.5" rel="Chapter" title="5 Security Considerations">
+<link href="#rfc.section.6" rel="Chapter" title="6 IANA Considerations">
+<link href="#rfc.references" rel="Chapter" title="7 References">
+<link href="#rfc.references.1" rel="Chapter" title="7.1 Normative References">
+<link href="#rfc.references.2" rel="Chapter" title="7.2 Informative References">
 <link href="#rfc.acknowledgments" rel="Chapter">
 <link href="#rfc.authors" rel="Chapter">
 
@@ -354,13 +358,21 @@ ul.toc li {
 </li>
 <li>2.   <a href="#rfc.section.2">Conventions and Definitions</a>
 </li>
-<li>3.   <a href="#rfc.section.3">Security Considerations</a>
+<li>3.   <a href="#rfc.section.3">PSK Injection</a>
 </li>
-<li>4.   <a href="#rfc.section.4">IANA Considerations</a>
+<li>4.   <a href="#rfc.section.4">Additional Derive Secret</a>
 </li>
-<li>5.   <a href="#rfc.references">Normative References</a>
+<li>5.   <a href="#rfc.section.5">Security Considerations</a>
 </li>
-<li><a href="#rfc.acknowledgments">Acknowledgments</a>
+<li>6.   <a href="#rfc.section.6">IANA Considerations</a>
+</li>
+<li>7.   <a href="#rfc.references">References</a>
+</li>
+<ul><li>7.1.   <a href="#rfc.references.1">Normative References</a>
+</li>
+<li>7.2.   <a href="#rfc.references.2">Informative References</a>
+</li>
+</ul><li><a href="#rfc.acknowledgments">Acknowledgments</a>
 </li>
 <li><a href="#rfc.authors">Author's Address</a>
 </li>
@@ -371,21 +383,52 @@ ul.toc li {
   <h1 id="rfc.section.1">
 <a href="#rfc.section.1">1.</a> <a href="#introduction" id="introduction">Introduction</a>
 </h1>
-<p id="rfc.section.1.p.1">TODO Introduction</p>
+<p id="rfc.section.1.p.1">Injecting key material into the TLS handshake is a non-trivial process, because both parties need to agree on what is being injected and why.  If the two parties do not agree then there is scope for an attacker toc exploit the mismatch to perform channel synchronization attacks.</p>
+<p id="rfc.section.1.p.2">Injecting key material into the TLS handshake allows other protocols to be bound to the handshake, and to provide additional protections to the ClientHello message, which in the standard TLS handshake only receives protections after the server&#8217;s Finished message has been received.</p>
 <h1 id="rfc.section.2">
 <a href="#rfc.section.2">2.</a> <a href="#conventions-and-definitions" id="conventions-and-definitions">Conventions and Definitions</a>
 </h1>
 <p id="rfc.section.2.p.1">The key words &#8220;MUST&#8221;, &#8220;MUST NOT&#8221;, &#8220;REQUIRED&#8221;, &#8220;SHALL&#8221;, &#8220;SHALL NOT&#8221;, &#8220;SHOULD&#8221;, &#8220;SHOULD NOT&#8221;, &#8220;RECOMMENDED&#8221;, &#8220;NOT RECOMMENDED&#8221;, &#8220;MAY&#8221;, and &#8220;OPTIONAL&#8221; in this document are to be interpreted as described in BCP 14 <a href="#RFC2119" class="xref">[RFC2119]</a> <a href="#RFC8174" class="xref">[RFC8174]</a> when, and only when, they appear in all capitals, as shown here.</p>
 <h1 id="rfc.section.3">
-<a href="#rfc.section.3">3.</a> <a href="#security-considerations" id="security-considerations">Security Considerations</a>
+<a href="#rfc.section.3">3.</a> <a href="#psk-injection" id="psk-injection">PSK Injection</a>
 </h1>
-<p id="rfc.section.3.p.1">TODO Security</p>
+<p id="rfc.section.3.p.1">To bind one protocol to another you can use the procedure defined in <a href="#EPSKI" class="xref">[EPSKI]</a> to add a special PSK to the protocol. This process gives authentication guarantees to both the protocol being bound and TLS.</p>
 <h1 id="rfc.section.4">
-<a href="#rfc.section.4">4.</a> <a href="#iana-considerations" id="iana-considerations">IANA Considerations</a>
+<a href="#rfc.section.4">4.</a> <a href="#additional-derive-secret" id="additional-derive-secret">Additional Derive Secret</a>
 </h1>
-<p id="rfc.section.4.p.1">This document has no IANA actions.</p>
+<p id="rfc.section.4.p.1">To add confidentiality guarantees to the ClientHello using PSK binders is insufficient. This is because cut-and-paste attacks are still possible on the ClientHello. Even though the handshake will fail, information in the ClientHello may still be exposed.</p>
+<p id="rfc.section.4.p.2">To inject key material into the Handshake Secret it is recommended to use an extra derive secret.</p>
+<pre>
+             |
+             v
+       Derive-Secret(., "derived early", "")
+             |
+             v
+    Input -&gt; HKDF-Extract
+
+             |
+             v
+       Derive-Secret(., "derived", "")
+             |
+             v
+   (EC)DHE -&gt; HKDF-Extract = Handshake Secret
+             |
+             v
+</pre>
+<p id="rfc.section.4.p.3">As shown in the figure above, the key schedule has an extra derive secret and HKDF-Extract step. This extra step isolates the Input material from the rest of the handshake secret, such that even maliciously chosen values cannot weaken the security of the key schedule overall.</p>
+<p id="rfc.section.4.p.4">The additional Derive-Secret with the &#8220;derived early&#8221; label enforces the seperation of the key schedule from vanilla TLS handshakes, because HKDFs can be assumed to ensure that keys derived with different labels are independent.</p>
+<h1 id="rfc.section.5">
+<a href="#rfc.section.5">5.</a> <a href="#security-considerations" id="security-considerations">Security Considerations</a>
+</h1>
+<p id="rfc.section.5.p.1">This draft has not seen substantial security analysis.</p>
+<h1 id="rfc.section.6">
+<a href="#rfc.section.6">6.</a> <a href="#iana-considerations" id="iana-considerations">IANA Considerations</a>
+</h1>
+<p id="rfc.section.6.p.1">This document has no IANA actions.</p>
 <h1 id="rfc.references">
-<a href="#rfc.references">5.</a> Normative References</h1>
+<a href="#rfc.references">7.</a> References</h1>
+<h1 id="rfc.references.1">
+<a href="#rfc.references.1">7.1.</a> Normative References</h1>
 <table><tbody>
 <tr>
 <td class="reference"><b id="RFC2119">[RFC2119]</b></td>
@@ -398,6 +441,13 @@ ul.toc li {
 <a>Leiba, B.</a>, "<a href="https://tools.ietf.org/html/rfc8174">Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words</a>", BCP 14, RFC 8174, DOI 10.17487/RFC8174, May 2017.</td>
 </tr>
 </tbody></table>
+<h1 id="rfc.references.2">
+<a href="#rfc.references.2">7.2.</a> Informative References</h1>
+<table><tbody><tr>
+<td class="reference"><b id="EPSKI">[EPSKI]</b></td>
+<td class="top">
+<a>Benjamin, D.</a> and <a>C. Wood</a>, "<a href="https://tools.ietf.org/html/draft-ietf-tls-external-psk-importer-01">Importing External PSKs for TLS</a>", Internet-Draft draft-ietf-tls-external-psk-importer-01, October 2019.</td>
+</tr></tbody></table>
 <h1 id="rfc.acknowledgments"><a href="#rfc.acknowledgments">Acknowledgments</a></h1>
 <p id="rfc.section.A.p.1">TODO acknowledge.</p>
 <h1 id="rfc.authors"><a href="#rfc.authors">Author's Address</a></h1>

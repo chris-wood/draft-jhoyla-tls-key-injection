@@ -72,17 +72,30 @@ Table of Contents
 
    1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
    2.  Conventions and Definitions . . . . . . . . . . . . . . . . .   2
-   3.  Security Considerations . . . . . . . . . . . . . . . . . . .   2
-   4.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   2
-   5.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   2
-     5.1.  Normative References  . . . . . . . . . . . . . . . . . .   3
-     5.2.  URIs  . . . . . . . . . . . . . . . . . . . . . . . . . .   3
-   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .   3
-   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   3.  PSK Injection . . . . . . . . . . . . . . . . . . . . . . . .   3
+   4.  Additional Derive Secret  . . . . . . . . . . . . . . . . . .   3
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . .   3
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   4
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   4
+     7.1.  Normative References  . . . . . . . . . . . . . . . . . .   4
+     7.2.  Informative References  . . . . . . . . . . . . . . . . .   4
+     7.3.  URIs  . . . . . . . . . . . . . . . . . . . . . . . . . .   4
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .   4
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   4
 
 1.  Introduction
 
-   TODO Introduction
+   Injecting key material into the TLS handshake is a non-trivial
+   process, because both parties need to agree on what is being injected
+   and why.  If the two parties do not agree then there is scope for an
+   attacker toc exploit the mismatch to perform channel synchronization
+   attacks.
+
+   Injecting key material into the TLS handshake allows other protocols
+   to be bound to the handshake, and to provide additional protections
+   to the ClientHello message, which in the standard TLS handshake only
+   receives protections after the server's Finished message has been
+   received.
 
 2.  Conventions and Definitions
 
@@ -91,19 +104,6 @@ Table of Contents
    "OPTIONAL" in this document are to be interpreted as described in BCP
    14 [RFC2119] [RFC8174] when, and only when, they appear in all
    capitals, as shown here.
-
-3.  Security Considerations
-
-   TODO Security
-
-4.  IANA Considerations
-
-   This document has no IANA actions.
-
-5.  References
-
-
-
 
 
 
@@ -114,7 +114,69 @@ J Hoyland                  Expires May 7, 2020                  [Page 2]
 Internet-Draft              TLS Key Injection              November 2019
 
 
-5.1.  Normative References
+3.  PSK Injection
+
+   To bind one protocol to another you can use the procedure defined in
+   [EPSKI] to add a special PSK to the protocol.  This process gives
+   authentication guarantees to both the protocol being bound and TLS.
+
+4.  Additional Derive Secret
+
+   To add confidentiality guarantees to the ClientHello using PSK
+   binders is insufficient.  This is because cut-and-paste attacks are
+   still possible on the ClientHello.  Even though the handshake will
+   fail, information in the ClientHello may still be exposed.
+
+   To inject key material into the Handshake Secret it is recommended to
+   use an extra derive secret.
+
+                |
+                v
+          Derive-Secret(., "derived early", "")
+                |
+                v
+       Input -> HKDF-Extract
+
+                |
+                v
+          Derive-Secret(., "derived", "")
+                |
+                v
+      (EC)DHE -> HKDF-Extract = Handshake Secret
+                |
+                v
+
+   As shown in the figure above, the key schedule has an extra derive
+   secret and HKDF-Extract step.  This extra step isolates the Input
+   material from the rest of the handshake secret, such that even
+   maliciously chosen values cannot weaken the security of the key
+   schedule overall.
+
+   The additional Derive-Secret with the "derived early" label enforces
+   the seperation of the key schedule from vanilla TLS handshakes,
+   because HKDFs can be assumed to ensure that keys derived with
+   different labels are independent.
+
+5.  Security Considerations
+
+   This draft has not seen substantial security analysis.
+
+
+
+
+
+J Hoyland                  Expires May 7, 2020                  [Page 3]
+
+Internet-Draft              TLS Key Injection              November 2019
+
+
+6.  IANA Considerations
+
+   This document has no IANA actions.
+
+7.  References
+
+7.1.  Normative References
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
@@ -125,7 +187,13 @@ Internet-Draft              TLS Key Injection              November 2019
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
               May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 
-5.2.  URIs
+7.2.  Informative References
+
+   [EPSKI]    Benjamin, D. and C. Wood, "Importing External PSKs for
+              TLS", draft-ietf-tls-external-psk-importer-01 (work in
+              progress), October 2019.
+
+7.3.  URIs
 
    [1] https://mailarchive.ietf.org/arch/browse/tls/
 
@@ -153,16 +221,4 @@ Author's Address
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-J Hoyland                  Expires May 7, 2020                  [Page 3]
+J Hoyland                  Expires May 7, 2020                  [Page 4]
